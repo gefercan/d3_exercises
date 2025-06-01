@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kant's Critique Tree</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f8f9fa;
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .node circle {
+            fill: #69b3a2;
+            stroke: #333;
+            stroke-width: 2px;
+            cursor: pointer;
+        }
+        
+        .node.has-children circle {
+            fill: #4a90e2;
+        }
+        
+        .node text {
+            font-size: 11px;
+            fill: #333;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+        
+        .link {
+            fill: none;
+            stroke: #666;
+            stroke-width: 2px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: none;
+            max-width: 250px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div class="tooltip" id="tooltip">
+        <h3 id="tooltip-title"></h3>
+        <p id="tooltip-brief"></p>
+        <a id="tooltip-link" href="#" target="_blank">Learn more</a>
+    </div>
+
+    <script>
+        // Data
+        const data = {
+            name: "CRITIQUE OF PURE REASON",
+            group: 60,
+            brief: "The Critique of Pure Reason is arranged around several basic distinctions. After the two Prefaces (the A edition Preface of 1781 and the B edition Preface of 1787) and the Introduction",
+            link: "https://google.com",
+            children: [
+                {
+                    name: "Doctrine of Elements",
+                    group: 40,
+                    brief: "The Doctrine of Elements sets out the a priori products of the mind",
+                    link: "https://google.com",
+                    children: [
+                        { name: "Transcendental Aesthetic",
+                            group: 20,
+                            brief: "The Transcendental Aesthetic",
+                            link: "https://google.com"
+                        },
+                        {name: "Transcendental Logic",
+                            group: 20,
+                            brief: "The Transcendental Logic section",
+                            link: "https://google.com",
+                            children: [{name: "Transcendental Analytic",
+                                   		 group: 20,
+                                    		brief: "The Transcendental Analytic sets forth the appropriate uses of a priori concepts",
+                                   		 link: "https://google.com",
+							children:[{name: "Book I. Analytic of Conceptions"
+							 		group: 20,
+                            				  		brief: "The Transcendental Aesthetic",
+                                                          		link: "https://google.com"
+									},
+						  			{name: "Book II. Analytic of Principles"
+                                                       			 group: 20,
+                           						 brief: "The Transcendental Aesthetic",
+                            						 link: "https://google.com"
+									}
+					},	
+								
+                                {
+                                    name: "Transcendental Dialectic",
+                                    group: 20,
+                                    brief: "The Transcendental Dialectic describes the transcendental illusion behind the misuse of these principles",
+                                    link: "https://google.com"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "Doctrine of Methods",
+                    group: 40,
+                    brief: "The Doctrine of Method contains four sections. The first section",
+                    link: "https://google.com"
+                }
+            ]
+        };
+
+        // Setup
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        const svg = d3.select("#container")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        const g = svg.append("g");
+
+        // Zoom
+        const zoom = d3.zoom()
+            .scaleExtent([0.2, 5])
+            .on("zoom", function(event) {
+                g.attr("transform", event.transform);
+            });
+
+        svg.call(zoom);
+
+        // Tree layout
+        const tree = d3.tree().size([2 * Math.PI, 200]);
+
+        // Tooltip
+        const tooltip = d3.select("#tooltip");
+
+        // Initialize - collapse all except root
+        function collapse(d) {
+            if (d.children) {
+                d._children = d.children;
+                d.children = null;
+                d._children.forEach(collapse);
+            }
+        }
+
+        const root = d3.hierarchy(data);
+        if (root.children) {
+            root.children.forEach(collapse);
+        }
+
+        function update(source) {
+            const treeData = tree(root);
+            const nodes = treeData.descendants();
+            const links = treeData.descendants().slice(1);
+
+            // Position nodes in radial layout
+            nodes.forEach(d => {
+                d.x_pos = centerX + (d.y + 50) * Math.cos(d.x - Math.PI / 2);
+                d.y_pos = centerY + (d.y + 50) * Math.sin(d.x - Math.PI / 2);
+            });
+
+            // Update nodes
+            const node = g.selectAll(".node")
+                .data(nodes, d => d.data.name);
+
+            const nodeEnter = node.enter().append("g")
+                .attr("class", "node")
+                .attr("transform", d => `translate(${d.x_pos},${d.y_pos})`)
+                .on("click", function(event, d) {
+                    click(event, d);
+                })
+                .on("dblclick", function() {
+                    hideTooltip();
+                });
+
+            // Add circles
+            nodeEnter.append("circle")
+                .attr("r", d => d.data.group === 60 ? 20 : d.data.group === 40 ? 15 : 10)
+                .style("opacity", d => d.depth === 0 ? 1 : 0.5);
+
+            // Add text
+            nodeEnter.append("text")
+                .attr("dy", d => d.data.group === 60 ? "25px" : d.data.group === 40 ? "20px" : "15px")
+                .style("font-size", d => d.data.group === 60 ? "14px" : d.data.group === 40 ? "12px" : "10px")
+                .text(d => d.data.name)
+                .each(function(d) {
+                    const text = d3.select(this);
+                    const words = d.data.name.split(' ');
+                    if (words.length > 2) {
+                        text.text('');
+                        text.append('tspan').attr('x', 0).attr('dy', 0).text(words.slice(0, 2).join(' '));
+                        text.append('tspan').attr('x', 0).attr('dy', '1.2em').text(words.slice(2).join(' '));
+                    }
+                });
+
+            // Update existing nodes
+            const nodeUpdate = nodeEnter.merge(node);
+
+            nodeUpdate.transition()
+                .duration(500)
+                .attr("transform", d => `translate(${d.x_pos},${d.y_pos})`);
+
+            // Update circle classes
+            nodeUpdate.select("circle")
+                .classed("has-children", d => d._children || d.children)
+                .style("opacity", d => {
+                    if (d.depth === 0) return 1;
+                    if (d.parent && d.parent.children) return 1;
+                    return 0.5;
+                });
+
+            // Remove old nodes
+            node.exit().transition()
+                .duration(500)
+                .style("opacity", 0)
+                .remove();
+
+            // Update links
+            const link = g.selectAll(".link")
+                .data(links, d => d.data.name);
+
+            const linkEnter = link.enter().insert("path", "g")
+                .attr("class", "link");
+
+            const linkUpdate = linkEnter.merge(link);
+
+            linkUpdate.transition()
+                .duration(500)
+                .attr("d", d => {
+                    return `M${d.x_pos},${d.y_pos}L${d.parent.x_pos},${d.parent.y_pos}`;
+                });
+
+            link.exit().transition()
+                .duration(500)
+                .style("opacity", 0)
+                .remove();
+        }
+
+        function click(event, d) {
+            // Toggle children
+            if (d.children) {
+                d._children = d.children;
+                d.children = null;
+            } else if (d._children) {
+                d.children = d._children;
+                d._children = null;
+            }
+
+            // Show tooltip
+            showTooltip(event, d);
+            
+            update(d);
+        }
+
+        function showTooltip(event, d) {
+            const rect = event.target.getBoundingClientRect();
+            
+            tooltip.select("#tooltip-title").text(d.data.name);
+            tooltip.select("#tooltip-brief").text(d.data.brief);
+            tooltip.select("#tooltip-link").attr("href", d.data.link);
+            
+            tooltip
+                .style("left", (rect.left + 20) + "px")
+                .style("top", (rect.top - 10) + "px")
+                .style("display", "block");
+        }
+
+        function hideTooltip() {
+            tooltip.style("display", "none");
+        }
+
+        // Initial render
+        update(root);
+
+        // Center the view
+        svg.call(zoom.transform, d3.zoomIdentity.translate(0, 0).scale(1));
+    </script>
+</body>
+</html>
